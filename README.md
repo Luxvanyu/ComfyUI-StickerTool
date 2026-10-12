@@ -23,7 +23,8 @@
   - 提供 `640px`、`720px`、`1024px (推荐)`、`1440px (2K)` 与原画多档规格，动图体积直降 90%（通常仅需 $1 \sim 5\text{ MB}$），聊天软件秒发秒播。
 
 - **🎭 APNG 幻影坦克生成器 (Full-Color Mirage Tank)**:
-- <img width="1570" height="1130" alt="QQ20261012-202217" src="https://github.com/user-attachments/assets/069edf96-3d87-4b8f-8aa4-5e0601fd4d95" />
+- <img width="1516" height="1149" alt="QQ20261012-205632" src="https://github.com/user-attachments/assets/b0c0acc5-316c-409a-8d15-096daaed867c" />
+<img width="1536" height="1344" alt="点击查看原图_1791809785136" src="https://github.com/user-attachments/assets/56d87849-cb54-4f4b-8f74-c92644a7d80f" />
   - **100% 满血全彩**：不掉色彩饱和度，表图伪装，点开大图展示隐藏真相。
   - **🛡️ 六档精简防审机制**：
     - `🔴 极高强度 (高反差扫描 · 严苛风控)`
