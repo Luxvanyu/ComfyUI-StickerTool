@@ -1,0 +1,24 @@
+# Python 字节码与缓存
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 临时生成与剪贴板文件（核心防泄露）
+temp/
+*.tmp
+*.png
+*.gif
+
+# 虚拟环境与 IDE
+venv/
+.env
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 操作系统临时文件
+.DS_Store
+Thumbs.db
+desktop.ini
