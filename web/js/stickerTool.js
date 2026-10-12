@@ -1,5 +1,5 @@
 // ==============================================
-// ComfyUI 轻量图片贴纸工具 & 幻影坦克 (全功能开源版)
+// ComfyUI 轻量图片贴纸工具 & 幻影坦克 (全量无错优化版)
 // ==============================================
 
 import { app } from "../../../scripts/app.js";
@@ -359,7 +359,7 @@ class StickerTool {
         this._undoingOrRedoing = false;
         this.maxHistory = 20;
         
-        // 浮动按钮拖拽位移防误触标记
+        // 浮动按钮拖拽防误触
         this.floatingBtnDragging = false;
         this.floatingBtnHasMoved = false;
         this.floatingBtnStartX = 0;
@@ -374,8 +374,9 @@ class StickerTool {
         this.mirageActiveSlot = null;
         this.lastGeneratedFilename = '点击查看原图.png';
         this.tankPreviewBg = 'dark';
+        this.lastTankObjectUrl = null;
 
-        // 动图播放调度
+        // 动图播放循环
         this.animLoopRunning = false;
 
         this.db = new StickerDB();
@@ -395,7 +396,7 @@ class StickerTool {
         this.applyNightModeStyles();
     }
 
-    // ================= 优雅非阻塞 Toast 提示组件 =================
+    // ================= 优雅非阻塞 Toast 组件 =================
     createToastContainer() {
         this.toastBox = document.createElement('div');
         this.toastBox.style.cssText = `
@@ -1016,6 +1017,7 @@ class StickerTool {
         this.showToast(`Speed: ${s.speed}x`, 'info');
     }
 
+    // ================= 幻影坦克面板 =================
     createMirageModal() {
         this.mirageModal = document.createElement('div');
         this.mirageModal.style.cssText = `
@@ -1291,10 +1293,10 @@ class StickerTool {
         document.getElementById('btnGenerateTank').onclick = () => this.generateMirageTank();
 
         document.getElementById('btnSaveTankPNG').onclick = () => {
-            if (!this.tankApngBlob) return;
+            if (!this.tankApngBlob || !this.lastTankObjectUrl) return;
             const link = document.createElement('a');
             link.download = this.lastGeneratedFilename;
-            link.href = URL.createObjectURL(this.tankApngBlob);
+            link.href = this.lastTankObjectUrl;
             link.click();
             this.showToast(this.lang === 'zh' ? "💾 文件已开始下载" : "💾 Download started", 'success');
         };
@@ -1576,6 +1578,7 @@ class StickerTool {
         return [cv1, cv2];
     }
 
+    // ================= 幻影坦克核心生成算法 (修复越界Bug) =================
     async generateMirageTank() {
         if (!this.tankImageA || !this.tankImageB) {
             this.showToast(this.lang === 'zh' ? "请先导入【表图】和【里图】！" : "Please load Cover and Hidden images!", 'warn');
@@ -1681,11 +1684,10 @@ class StickerTool {
             const apngBytes = new Uint8Array(totalLen);
             let offset = 0;
             const append = (u8) => {
-                outBytes.set(u8, offset);
+                apngBytes.set(u8, offset);
                 offset += u8.length;
             };
 
-            const outBytes = apngBytes;
             append(signature);
             append(ihdrChunk);
             append(actlChunk);
@@ -1730,6 +1732,7 @@ class StickerTool {
             let seq = 2;
             const fdatsB = chunksB.filter(c => c.type === 'IDAT').map(c => createFdAT(seq++, c.data));
 
+            // 精准计算字节长度，杜绝溢出
             const totalLen = signature.length + ihdrChunk.length + actlChunk.length +
                              fctl0.length + idatsA.reduce((sum, c) => sum + c.length, 0) +
                              fctl1.length + fdatsB.reduce((sum, c) => sum + c.length, 0) +
@@ -1738,15 +1741,13 @@ class StickerTool {
             const apngBytes = new Uint8Array(totalLen);
             let offset = 0;
             const append = (u8) => {
-                outBytes.set(u8, offset);
+                apngBytes.set(u8, offset);
                 offset += u8.length;
             };
 
-            const outBytes = apngBytes;
             append(signature);
             append(ihdrChunk);
             append(actlChunk);
-            for (const c of idatsA) append(c);
             append(fctl0);
             for (const c of idatsA) append(c);
             append(fctl1);
@@ -1755,6 +1756,12 @@ class StickerTool {
 
             this.tankApngBlob = new Blob([apngBytes], { type: 'image/png' });
         }
+
+        // 释放旧 Object URL 避免显存泄漏
+        if (this.lastTankObjectUrl) {
+            URL.revokeObjectURL(this.lastTankObjectUrl);
+        }
+        this.lastTankObjectUrl = URL.createObjectURL(this.tankApngBlob);
 
         const coverBox = document.getElementById('tankPreviewCoverBox');
         const innerBox = document.getElementById('tankPreviewInnerBox');
@@ -1766,7 +1773,7 @@ class StickerTool {
         imgA.style.cssText = 'max-width:100%; max-height:100%; object-fit:contain;';
 
         const imgB = document.createElement('img');
-        imgB.src = URL.createObjectURL(this.tankApngBlob);
+        imgB.src = this.lastTankObjectUrl;
         imgB.style.cssText = 'max-width:100%; max-height:100%; object-fit:contain;';
 
         coverBox.appendChild(imgA);
@@ -1968,6 +1975,7 @@ class StickerTool {
         this.updateCanvas();
     }
     
+    // ================= 浮动按钮修复：严格位移防误触 =================
     createFloatingButton() {
         this.floatingBtn = document.createElement('button');
         this.floatingBtn.innerHTML = '🖼️ 贴纸工具';
@@ -2850,6 +2858,7 @@ class StickerTool {
         return canvas;
     }
 
+    // ================= 动图合成 (消除1px微抖动 + 统一投影坐标系) =================
     async compositeAnimatedAPNG() {
         if (!this.baseImage) return null;
 
@@ -2911,6 +2920,7 @@ class StickerTool {
             return s.frames[fIdx].bitmap;
         };
 
+        // 旋转外接矩形范围判定
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         animStickers.forEach(s => {
             const cx = s.x + s.width / 2;
@@ -2938,6 +2948,7 @@ class StickerTool {
 
         const frameItems = [];
 
+        // Frame 0 全画幅基底图
         const cv0 = document.createElement('canvas');
         cv0.width = outW; cv0.height = outH;
         const ctx0 = cv0.getContext('2d');
@@ -2966,6 +2977,7 @@ class StickerTool {
             delayNum: delayMs, delayDen: 100
         });
 
+        // Frame 1 ~ N：采用反向位移统一绘制，消除任何切片舍入抖动
         for (let i = 1; i < numFrames; i++) {
             const t = i * dt;
             const cvSub = document.createElement('canvas');
@@ -2973,15 +2985,13 @@ class StickerTool {
             cvSub.height = cropH;
             const ctxSub = cvSub.getContext('2d');
 
-            ctxSub.drawImage(
-                this.baseImage,
-                cropNativeX, cropNativeY, cropNativeW, cropNativeH,
-                0, 0, cropW, cropH
-            );
+            ctxSub.save();
+            ctxSub.translate(-cropX, -cropY);
+            ctxSub.drawImage(this.baseImage, 0, 0, outW, outH);
 
             this.stickers.forEach(s => {
-                const sx = Math.round((s.x - cropNativeX) * scale);
-                const sy = Math.round((s.y - cropNativeY) * scale);
+                const sx = Math.round(s.x * scale);
+                const sy = Math.round(s.y * scale);
                 const sw = Math.round(s.width * scale);
                 const sh = Math.round(s.height * scale);
                 const cx = sx + sw / 2;
@@ -2995,6 +3005,8 @@ class StickerTool {
                 ctxSub.drawImage(img, -sw / 2, -sh / 2, sw, sh);
                 ctxSub.restore();
             });
+
+            ctxSub.restore();
 
             frameItems.push({
                 canvas: cvSub, x: cropX, y: cropY,
