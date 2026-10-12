@@ -1856,7 +1856,7 @@ class StickerTool {
                     
                     const avgR = Math.round(totalR / count);
                     const avgG = Math.round(totalG / count);
-                    const avgB = Math.round(totalB / count);
+                    const avgB = Math.round(totalG / count);
                     
                     for (let py = 0; py < bh; py++) {
                         for (let px = 0; px < bw; px++) {
@@ -2077,28 +2077,49 @@ class StickerTool {
             }
         }, { passive: false });
         
+        // 捕获阶段拦截粘贴事件，彻底阻止 ComfyUI 底层画布创建节点
         window.addEventListener('paste', async (e) => {
-            const items = (e.clipboardData || e.originalEvent.clipboardData)?.items;
+            const isModalOpen = (this.modal && this.modal.style.display === 'flex');
+            const isTankOpen = (this.mirageModal && this.mirageModal.style.display === 'flex');
+
+            if (!isModalOpen && !isTankOpen) return;
+
+            const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
             if (!items) return;
-            
+
+            let hasImage = false;
             for (let item of items) {
                 if (item.type.indexOf('image') !== -1) {
-                    const blob = item.getAsFile();
-                    if (this.mirageModal.style.display === 'flex') {
-                        this.handleMiragePaste(blob);
-                        return;
-                    }
-                    if (this.modal.style.display === 'flex') {
-                        await this.loadImageFromFile(blob, !this.baseImage);
-                        return;
+                    hasImage = true;
+                    break;
+                }
+            }
+
+            if (hasImage) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+
+                for (let item of items) {
+                    if (item.type.indexOf('image') !== -1) {
+                        const blob = item.getAsFile();
+                        if (isTankOpen) {
+                            this.handleMiragePaste(blob);
+                            return;
+                        }
+                        if (isModalOpen) {
+                            await this.loadImageFromFile(blob, !this.baseImage);
+                            return;
+                        }
                     }
                 }
             }
-        });
+        }, true); // true: 捕获阶段拦截，优先级高于 ComfyUI
 
         document.addEventListener('keydown', (e) => {
             if (this.mirageModal.style.display === 'flex' && e.key === 'Escape') {
                 e.preventDefault();
+                e.stopPropagation();
                 this.closeMirageModal();
                 return;
             }
@@ -2107,26 +2128,28 @@ class StickerTool {
             
             if (e.ctrlKey && e.key === 'z') {
                 e.preventDefault();
+                e.stopPropagation();
                 this.undo();
             } else if (e.ctrlKey && e.key === 'y') {
                 e.preventDefault();
+                e.stopPropagation();
                 this.redo();
             } else if (e.key === 'Delete') {
                 e.preventDefault();
+                e.stopPropagation();
                 this.deleteSelectedSticker();
             } else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
                 if (this.pickingColor) {
-                    e.preventDefault();
                     this.cancelColorPicking();
                 } else if (this.mosaicMode) {
-                    e.preventDefault();
                     this.toggleMosaicMode();
                 } else {
-                    e.preventDefault();
                     this.hide();
                 }
             }
-        });
+        }, true);
         
         window.addEventListener('resize', () => {
             if (this.modal.style.display === 'flex') {
