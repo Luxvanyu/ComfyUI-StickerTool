@@ -1,5 +1,5 @@
 # ==============================================
-# ComfyUI 轻量图片贴纸工具 & 动图文件剪贴板服务 (含自动缓存清理)
+# ComfyUI 轻量图片贴纸工具 & 动图文件剪贴板服务 (含自动缓存清理与跨平台支持)
 # ==============================================
 
 import os
@@ -11,7 +11,7 @@ from ctypes import wintypes
 from server import PromptServer
 from aiohttp import web
 
-WEB_DIRECTORY = "web"
+WEB_DIRECTORY = "./web"
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}
 
@@ -110,10 +110,15 @@ def copy_file_to_windows_clipboard(file_path):
             return False, "剪贴板正被其他软件占用"
 
         user32.EmptyClipboard()
-        res = user32.SetClipboardData(15, h_global)
+        res = user32.SetClipboardData(15, h_global)  # CF_HDROP = 15
         user32.CloseClipboard()
 
-        return (True, "成功") if res else (False, "写入文件句柄失败")
+        if not res:
+            # 写入失败时系统未接管句柄，必须手动释放
+            kernel32.GlobalFree(h_global)
+            return False, "写入文件句柄失败"
+
+        return True, "成功"
     except Exception as e:
         return False, f"底层调用异常: {e}"
 
@@ -123,7 +128,10 @@ async def copy_tank_file_route(request):
     try:
         data = await request.post()
         file_field = data.get('file')
-        filename = data.get('filename', 'image.png')
+        raw_filename = data.get('filename', 'image.png')
+
+        # 安全防范：过滤路径，防止目录穿越
+        filename = os.path.basename(raw_filename) or 'image.png'
 
         if not file_field:
             return web.json_response({"success": False, "error": "未接收到图片数据"})
@@ -132,12 +140,17 @@ async def copy_tank_file_route(request):
         temp_dir = os.path.join(plugin_dir, "temp")
         os.makedirs(temp_dir, exist_ok=True)
 
-        # 写入前先清理旧缓存，保持磁盘整洁
+        # 写入前清理旧缓存
         clean_temp_dir(temp_dir, max_files=5)
 
         file_path = os.path.join(temp_dir, filename)
         with open(file_path, "wb") as f:
-            f.write(file_field.file.read())
+            if hasattr(file_field, 'file'):
+                f.write(file_field.file.read())
+            elif hasattr(file_field, 'read'):
+                f.write(file_field.read())
+            else:
+                f.write(file_field)
 
         ok, msg = copy_file_to_windows_clipboard(file_path)
         return web.json_response({"success": ok, "path": file_path, "error": msg if not ok else None})
@@ -148,13 +161,27 @@ async def copy_tank_file_route(request):
 async def open_file_dir_route(request):
     try:
         data = await request.post()
-        filename = data.get('filename', 'image.png')
+        raw_filename = data.get('filename', 'image.png')
+        filename = os.path.basename(raw_filename) or 'image.png'
+        
         plugin_dir = os.path.dirname(os.path.abspath(__file__))
         file_path = os.path.abspath(os.path.join(plugin_dir, "temp", filename))
         
-        if os.path.exists(file_path) and sys.platform == "win32":
-            subprocess.Popen(f'explorer /select,"{file_path}"')
+        if not os.path.exists(file_path):
+            return web.json_response({"success": False, "error": "文件不存在"})
+
+        # 跨平台安全文件定位
+        norm_path = os.path.normpath(file_path)
+        if sys.platform == "win32":
+            subprocess.Popen(["explorer", f"/select,{norm_path}"])
             return web.json_response({"success": True})
-        return web.json_response({"success": False, "error": "文件不存在"})
+        elif sys.platform == "darwin":  # macOS
+            subprocess.Popen(["open", "-R", norm_path])
+            return web.json_response({"success": True})
+        elif sys.platform.startswith("linux"):  # Linux (打开所在目录)
+            subprocess.Popen(["xdg-open", os.path.dirname(norm_path)])
+            return web.json_response({"success": True})
+        else:
+            return web.json_response({"success": False, "error": f"暂不支持系统: {sys.platform}"})
     except Exception as e:
         return web.json_response({"success": False, "error": str(e)})
