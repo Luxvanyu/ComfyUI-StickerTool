@@ -8,8 +8,9 @@
 ---
 
 ## 🌟 特性亮点 / Key Features
-
+<img width="2215" height="1140" alt="QQ20261012-200248" src="https://github.com/user-attachments/assets/c95d0302-3c80-4cdd-8119-c8bdd5233ab5" />
 - **🎨 交互式贴纸编辑 (Interactive Sticker Editing)**:
+- <img width="1920" height="862" alt="QQ20261012-200159-HD" src="https://github.com/user-attachments/assets/00fc839e-7ae2-49f1-aa71-9fc2312882a6" />
   - 支持静态图片与**原生动态 GIF 贴纸**实时循环播放。
   - **交互旋转手柄**：支持 $0^\circ \sim 360^\circ$ 自由平滑旋转，按住 `Shift` 自动吸附至 $15^\circ$ 倍数。
   - **等比例缩放**：四角手柄拖拽调整大小时，按住 `Shift` 锁定原始纵横比。
